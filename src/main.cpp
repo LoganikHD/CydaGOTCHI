@@ -17,9 +17,10 @@ void setup() {
   touchBegin();
   settingsBegin();
   rgbLed(0, 0, 255);
-
-  bool cal = bootPressed();
+  
   uiSplash();
+  bool cal = bootPressed();
+
   if (cal) Serial.println("[TOUCH] BOOT held — calibrating");
   uiBegin(cal);
 

@@ -12,35 +12,44 @@ static int tPinIn(int pin) { pinMode(pin, INPUT); return digitalRead(pin); }
 static void tDelay() { delayMicroseconds(2); }
 
 static uint16_t xptTransfer(uint8_t cmd) {
-  uint16_t v = 0;
+  digitalWrite(PIN_TOUCH_CS, LOW);
+  tDelay();
+
   tPinOut(PIN_TOUCH_CLK, false);
+
+  // Befehl übertragen
   for (int i = 7; i >= 0; --i) {
     tPinOut(PIN_TOUCH_MOSI, (cmd >> i) & 1);
-    tPinOut(PIN_TOUCH_CLK, true); tDelay();
-    tPinOut(PIN_TOUCH_CLK, false); tDelay();
+    tPinOut(PIN_TOUCH_CLK, true);
+    tDelay();
+    tPinOut(PIN_TOUCH_CLK, false);
+    tDelay();
   }
-  tDelay();
-  for (int i = 11; i >= 0; --i) {
-    tPinOut(PIN_TOUCH_CLK, true); tDelay();
-    if (tPinIn(PIN_TOUCH_MISO)) v |= (1 << i);
-    tPinOut(PIN_TOUCH_CLK, false); tDelay();
+
+  // Komplettes 16-Bit-Datenfenster lesen
+  uint16_t raw = 0;
+  for (int i = 0; i < 16; ++i) {
+    tPinOut(PIN_TOUCH_CLK, true);
+    tDelay();
+
+    raw = (uint16_t)((raw << 1) |
+          (tPinIn(PIN_TOUCH_MISO) ? 1 : 0));
+
+    tPinOut(PIN_TOUCH_CLK, false);
+    tDelay();
   }
-  // extra clocks to complete the frame
-  for (int i = 0; i < 3; ++i) {
-    tPinOut(PIN_TOUCH_CLK, true); tDelay();
-    tPinOut(PIN_TOUCH_CLK, false); tDelay();
-  }
-  return v;
+
+  digitalWrite(PIN_TOUCH_CS, HIGH);
+
+  // 12-Bit-Messwert ausrichten
+  return (raw >> 3) & 0x0FFF;
 }
 
 static bool xptSample(uint16_t& x, uint16_t& y, uint16_t& z) {
-  digitalWrite(PIN_TOUCH_CS, LOW);
-  tDelay();
-  z = xptTransfer(0xB1);  // Z1
-  x = xptTransfer(0xD1);  // X
-  y = xptTransfer(0x91);  // Y
-  xptTransfer(0x80);      // power down
-  digitalWrite(PIN_TOUCH_CS, HIGH);
+  z = xptTransfer(0xB0);  // Druck
+  x = xptTransfer(0xD0);  // X
+  y = xptTransfer(0x90);  // Y
+
   return z >= TOUCH_Z_MIN;
 }
 
@@ -145,5 +154,6 @@ void touchCalibrateInteractive() {
     prefs.end();
   }
   calLoaded = true;
+  tft.setTextSize(1);
   delay(250);
 }
