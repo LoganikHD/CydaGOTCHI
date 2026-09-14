@@ -1,6 +1,8 @@
 #include "sdstore.h"
+#include "timesync.h"
 #include <SD.h>
 #include <SPI.h>
+#include <sys/time.h>
 
 static SPIClass sdSpi(VSPI);
 static bool g_sd = false;
@@ -19,9 +21,21 @@ static void pcapGlobalHeader(File& f) {
 }
 
 static void pcapPacket(File& f, const uint8_t* data, uint16_t len) {
-  uint32_t ts = millis();
-  uint32_t sec = ts / 1000;
-  uint32_t usec = (ts % 1000) * 1000;
+  uint32_t sec;
+  uint32_t usec;
+
+  if (timeSyncValid()) {
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    sec = (uint32_t)tv.tv_sec;
+    usec = (uint32_t)tv.tv_usec;
+  } else {
+    // Fallback before NTP is available: keep captures writable using uptime.
+    uint32_t ts = millis();
+    sec = ts / 1000;
+    usec = (ts % 1000) * 1000;
+  }
+
   uint32_t n = len;
   uint8_t ph[16];
   memcpy(ph + 0, &sec, 4);
