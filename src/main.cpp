@@ -7,6 +7,7 @@
 #include "sniffer.h"
 #include "ble_scan.h"
 #include "ui.h"
+#include "timesync.h"
 
 void setup() {
   Serial.begin(115200);
@@ -16,6 +17,7 @@ void setup() {
   hwBegin();
   touchBegin();
   settingsBegin();
+  timeSyncBegin();
   rgbLed(0, 0, 255);
   
   uiSplash();
@@ -45,6 +47,7 @@ void setup() {
 void loop() {
   snifferLoop();
   portalLoop();
+  timeSyncLoop();
   bleLoop();
   uiLoop();
   delay(5);
