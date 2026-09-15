@@ -6,6 +6,7 @@
 #include "faces.h"
 #include "ble_scan.h"
 #include "settings.h"
+#include "portal.h"
 #include <string.h>
 
 static const uint16_t COL_BG    = 0x0000;
@@ -18,6 +19,7 @@ static const uint16_t COL_WHITE = 0xFFFF;
 static const uint16_t COL_LINE  = 0x2104;
 static const uint16_t COL_BTN   = 0x3186;
 static const uint16_t COL_BTN_ON= 0x2A60;
+static const uint16_t COL_DISC  = 0xA800;
 
 static const int HDR_H     = 18;
 static const int MASK_X    = (SCREEN_W - FACE_W) / 2;
@@ -42,6 +44,8 @@ static bool wasPressed = false;
 
 static uint8_t lastCh = 255;
 static bool lastHop = false;
+static bool lastPortalLocked = false;
+static bool lastHomeConnected = false;
 static bool lastList = false;
 static uint16_t lastAps = 0xFFFF;
 static uint32_t lastEapol = 0xFFFFFFFF;
@@ -156,28 +160,43 @@ static void drawFooterBg() {
 }
 
 static void drawButtons(bool force) {
-  if (!force && lastCh == g_stats.channel && lastHop == g_stats.hopping && lastList == (viewMode != 0))
+  bool portalLocked = portalChannelLocked();
+  bool homeConnected = portalHomeConnected();
+  if (!force && lastCh == g_stats.channel && lastHop == g_stats.hopping &&
+      lastPortalLocked == portalLocked && lastHomeConnected == homeConnected &&
+      lastList == (viewMode != 0))
     return;
   lastHop = g_stats.hopping;
+  lastPortalLocked = portalLocked;
+  lastHomeConnected = homeConnected;
   lastList = (viewMode != 0);
   lastCh = g_stats.channel;
 
   drawFooterBg();
-  auto btn = [&](int i, const char* label, bool on) {
+  auto btn = [&](int i, const char* label, bool on, bool enabled) {
     int x = BTN_X0 + i * (BTN_W + BTN_GAP);
-    uint16_t bg = on ? COL_BTN_ON : COL_BTN;
+    uint16_t bg = enabled ? (on ? COL_BTN_ON : COL_BTN) : COL_LINE;
     tft.fillRoundRect(x, BTN_Y, BTN_W, BTN_H, 4, bg);
     tft.setTextDatum(MC_DATUM);
     tft.setTextFont(2);
-    tft.setTextColor(COL_WHITE, bg);
+    tft.setTextColor(enabled ? COL_WHITE : COL_DIM, bg);
     tft.drawString(label, x + BTN_W / 2, BTN_Y + BTN_H / 2);
   };
   char ch[10];
-  snprintf(ch, sizeof(ch), "CH %u", g_stats.channel);
-  btn(0, ch, true);
-  btn(1, g_stats.hopping ? "HOP" : "HOLD", g_stats.hopping);
+  if (homeConnected) {
+    strcpy(ch, "DISC");
+    tft.fillRoundRect(BTN_X0, BTN_Y, BTN_W, BTN_H, 4, COL_DISC);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextFont(2);
+    tft.setTextColor(COL_WHITE, COL_DISC);
+    tft.drawString(ch, BTN_X0 + BTN_W / 2, BTN_Y + BTN_H / 2);
+  } else {
+    snprintf(ch, sizeof(ch), "CH %u", g_stats.channel);
+    btn(0, ch, true, !portalLocked);
+  }
+  btn(1, g_stats.hopping ? "HOP" : "HOLD", g_stats.hopping, true);
   const char* vlab = (viewMode == 1) ? "APS" : (viewMode == 2) ? "BLE" : "FACE";
-  btn(2, vlab, viewMode != 0);
+  btn(2, vlab, viewMode != 0, true);
 }
 
 static void cell(int x, int y, const char* k, const char* v, uint16_t vc) {
@@ -408,9 +427,15 @@ void uiLoop() {
     if (tp.y >= FOOTER_Y) {
       int slot = (tp.x - BTN_X0) / (BTN_W + BTN_GAP);
       if (slot <= 0) {
-        snifferNextChannel();
-        drawHeader(true);
-        drawButtons(true);
+        if (portalHomeConnected()) {
+          portalDisconnectHome();
+          drawHeader(true);
+          drawButtons(true);
+        } else if (!portalChannelLocked()) {
+          snifferNextChannel();
+          drawHeader(true);
+          drawButtons(true);
+        }
       } else if (slot == 1) {
         snifferSetHopping(!snifferHopping());
         drawButtons(true);

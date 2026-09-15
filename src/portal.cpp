@@ -397,6 +397,10 @@ bool portalHomeConnected() {
   return portalReady && WiFi.status() == WL_CONNECTED;
 }
 
+bool portalChannelLocked() {
+  return connectingHome || portalHomeConnected() || WiFi.softAPgetStationNum() > 0;
+}
+
 bool portalHasClients() { return WiFi.softAPgetStationNum() > 0; }
 
 void portalLoop() {
