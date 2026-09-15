@@ -13,8 +13,8 @@ void hwBegin() {
 
   pinMode(CYD_BL_PIN, OUTPUT);
   pinMode(CYD_BL_PIN_ALT, OUTPUT);
-  digitalWrite(CYD_BL_PIN, HIGH);
-  digitalWrite(CYD_BL_PIN_ALT, HIGH);
+  // In stealth mode the backlight must stay dark from the first GPIO setup.
+  setBacklight(!STEALTH_MODE);
 
   tft.init();
   tft.setRotation(0);  // portrait 240x320
@@ -30,9 +30,19 @@ void setBacklight(bool on) {
 
 void rgbLed(uint8_t r, uint8_t g, uint8_t b) {
   // CYD RGB is active LOW
+#if STEALTH_MODE
+  // Stealth mode: ignore all UI colour requests and keep the LED off.
+  (void)r;
+  (void)g;
+  (void)b;
+  digitalWrite(PIN_LED_R, HIGH);
+  digitalWrite(PIN_LED_G, HIGH);
+  digitalWrite(PIN_LED_B, HIGH);
+#else
   digitalWrite(PIN_LED_R, r ? LOW : HIGH);
   digitalWrite(PIN_LED_G, g ? LOW : HIGH);
   digitalWrite(PIN_LED_B, b ? LOW : HIGH);
+#endif
 }
 
 bool bootPressed() {

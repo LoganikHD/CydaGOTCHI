@@ -19,12 +19,20 @@ void setup() {
   settingsBegin();
   timeSyncBegin();
   rgbLed(0, 0, 255);
-  
+
   uiSplash();
   bool cal = bootPressed();
 
-  if (cal) Serial.println("[TOUCH] BOOT held — calibrating");
+  if (cal) {
+    // Calibration is the only boot-time exception to the dark display.
+    setBacklight(true);
+    Serial.println("[TOUCH] BOOT held — calibrating");
+  }
   uiBegin(cal);
+#if STEALTH_MODE
+  // Return to the configured stealth start state after optional calibration.
+  setBacklight(false);
+#endif
 
   if (sdBegin()) {
     g_stats.sdOk = true;
@@ -45,6 +53,20 @@ void setup() {
 }
 
 void loop() {
+  // A short BOOT press toggles only the TFT backlight. Scanning, logging,
+  // Wi-Fi and time synchronization continue while the display is dark.
+  static bool backlightOn = !STEALTH_MODE;
+  static bool lastBootState = bootPressed();
+  static uint32_t lastBacklightToggle = 0;
+  bool bootState = bootPressed();
+  if (bootState && !lastBootState &&
+      millis() - lastBacklightToggle >= 250) {
+    backlightOn = !backlightOn;
+    setBacklight(backlightOn);
+    lastBacklightToggle = millis();
+  }
+  lastBootState = bootState;
+
   snifferLoop();
   portalLoop();
   timeSyncLoop();

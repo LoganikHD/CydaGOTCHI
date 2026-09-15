@@ -3,12 +3,17 @@
 #include <Arduino.h>
 
 #define CYDGOTCHI_NAME     "cydgotchi"
-#define CYDGOTCHI_VERSION  "0.3.0"
+#define CYDGOTCHI_VERSION  "0.3.1"
+#define STEALTH_MODE       1
 
 #ifndef CYD_BL_PIN
 #define CYD_BL_PIN 21
 #endif
+#if CYD_BL_PIN == 21
 #define CYD_BL_PIN_ALT     27
+#else
+#define CYD_BL_PIN_ALT     21
+#endif
 
 #define PIN_BOOT           0
 #define PIN_LED_R          4
